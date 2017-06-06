@@ -1,0 +1,159 @@
+library(ggplot2)
+library(tidyr)
+library(RColorBrewer)
+path <- "C:/Users/Usuario/Documents/cursos/Data Analysis/GeoData/Camden/tables"
+setwd(path)
+Ethnicity <- read.csv("KS201EW_oa11.csv")
+Rooms <- read.csv("KS403EW_oa11.csv")
+Qualifications <-read.csv("KS501EW_oa11.csv")
+Employment <-read.csv("KS601EW_oa11.csv")
+names(Employment)
+#selecting columns
+Ethnicity <- Ethnicity[, c(1, 21)]
+Rooms <- Rooms[, c(1, 13)]
+Employment <- Employment[, c(1, 20)]
+Qualifications <- Qualifications[, c(1, 20)]
+names(Employment)[2] <- "Unemployed"
+names(Ethnicity)<- c("OA", "White_British")
+names(Rooms)<- c("OA", "Low_Occupancy")
+names(Employment)<- c("OA", "Unemployed")
+names(Qualifications)<- c("OA", "Qualification")
+#joining data
+merged_data_1 <- merge(Ethnicity, Rooms, by="OA")
+merged_data_2 <- merge(merged_data_1, Employment, by="OA")
+census.data <- merge(merged_data_2, Qualifications, by="OA")
+rm(merged_data_1, merged_data_2)
+#save
+write.csv(census.data, "practical.data.csv", row.names = F)
+#EDA
+census.data <- read.csv("practical.data.csv")
+print(census.data[1:20, 1:5])
+mean(census.data$Unemployed)
+median(census.data$Unemployed)
+range(census.data$Unemployed)
+summary(census.data)
+ggplot(census.data, aes(Unemployed)) + geom_histogram(binwidth = 1.5)
+ggplot(census.data, aes(Unemployed)) + geom_histogram(bins = 15) +
+  theme_minimal()
+ggplot(census.data, aes(Unemployed)) + 
+  labs(title ="% in full-time employment", x = "percentage") +
+  geom_histogram(bins = 20, color = "orange", fill = "blue") +
+  theme_minimal()
+boxplot(census.data[,2:5])
+ggplot(census.data, aes(x = "", y = Unemployed)) + geom_boxplot()
+a <- data.frame(variable = "Unemployed", n = census.data$Unemployed)
+b <- data.frame(variable = "White_British", n = census.data$White_British)
+c <- data.frame(variable = "Low_Occupancy", n = census.data$Low_Occupancy)
+d <- data.frame(variable = "Qualification", n = census.data$Qualification)
+df <- rbind(a,b,c,d)
+ggplot(df, aes(variable, n, fill = variable)) + geom_boxplot()
+library(vioplot)
+vioplot(census.data$Unemployed, census.data$White_British, 
+        census.data$Low_Occupancy, census.data$Qualification)
+ggplot(census.data, aes(x = "", y = Unemployed)) + geom_violin()
+ggplot(df, aes(variable, n, fill = variable)) + geom_violin() + 
+  scale_fill_brewer(palette = "PuRd") + theme(legend.position = "none")
+#bivariate plots
+ggplot(census.data, aes(Unemployed, Qualification)) + 
+  geom_point(aes(size = White_British), color = "purple") +
+  geom_smooth()
+ggplot(census.data, aes(Unemployed, Qualification)) + 
+  geom_hex()
+ggplot(census.data, aes(Unemployed, Qualification)) + 
+  geom_point(aes(size = White_British), color = "purple") + #shape = "R"
+  geom_smooth(method = "lm", se = F, colour = "red", lty = 2, lwd = 2)
+p <- ggplot(census.data, aes(Unemployed,Qualification))
+p + geom_point(aes(colour = White_British, size = Low_Occupancy))
+#bivariate correlations
+# Pearson’s correlation: linear
+# Spearman’s rank correlation: non linear
+cor(census.data$Unemployed, census.data$Qualification)
+library(corrplot)
+g <- cor(census.data[,2:5])
+corrplot(g, method = "circle", tl.cex = 0.6)
+corrplot.mixed(g, col = brewer.pal(n = 8, name = "PuOr"))
+cor.test(census.data$Unemployed, census.data$Qualification)
+cor.test(census.data$Unemployed, census.data$Qualification, method = "spearman")
+round(g, 2)
+corrplot(g, type = "upper", col = brewer.pal(n = 10, name = "PuOr"), 
+         tl.cex = 0.6, addCoef.col = "black")
+mod1 <- lm(Qualification~Unemployed, census.data)
+ggplot(census.data, aes(Unemployed, Qualification)) + geom_point() +
+  labs(x = "% unemployed", y = "% with a qualification") +
+  geom_smooth(method = "lm")
+summary(mod1)
+predict(mod1, data.frame(Unemployed = 10), interval = "confidence")
+=========
+#Making maps in R
+library(rgdal)
+library(rgeos)
+path <- "C:/Users/Usuario/Documents/cursos/Data Analysis/GeoData/Camden/shapefiles"
+setwd(path)
+output.areas <- readOGR(".", "Camden_oa11")
+plot(output.areas)
+oa.census <- merge(output.areas, census.data, by.x = "OA11CD", by.y = "OA")
+#setting a coordinate system
+proj4string(oa.census) <- CRS("+init=EPSG:27700")
+library(tmap)
+library(leaflet)
+qtm(oa.census, fill = "Qualification")
+tm_shape(oa.census) + tm_fill("Qualification")
+library(RColorBrewer)
+display.brewer.all()
+tm_shape(oa.census) + tm_fill("Qualification", palette = "-Greens")
+tm_shape(oa.census) + tm_fill("Qualification", style = "quantile", palette = "Reds")
+#equal - divides the range of the variable into n parts.
+#pretty - chooses a number of breaks to fit a sequence of equally spaced ‘round’ values. So they keys for these intervals are always tidy and memorable.
+#quantile - equal number of cases in each group
+#jenks - looks for natural breaks in the data
+#Cat - if the variable is categorical (i.e. not continuous data)
+tm_shape(oa.census) + tm_fill("Qualification", style = "jenks", n = 7, palette = "Reds")
+tm_shape(oa.census) + tm_fill("Qualification", style = "jenks", 
+                              n = 7, palette = "Reds", legend.hist = T)
+tm_shape(oa.census) + tm_fill("Qualification", palette = "Blues") + 
+  tm_borders(alpha = 0.4)
+tm_shape(oa.census) + tm_fill("Qualification", palette = "Blues") + 
+  tm_borders(alpha = 0.4) + tm_compass()
+tm_shape(oa.census) + tm_fill("Qualification", palette = "Blues", 
+                              style = "equal", title = "% Calificados") +
+  tm_borders(alpha = 0.5) + tm_compass(position = c("right", "top")) + 
+  tm_layout(title = "Candem, London", legend.text.size = 0.9, 
+            legend.title.size = 1.1, legend.position = c("left", "bottom"), frame = F)
+writeOGR(oa.census, dsn = path, layer = "censo.oa.shapefile", 
+      driver = "ESRI Shapefile")
+#mapping point data
+library(rgdal)
+library(rgeos)
+path <- "C:/Users/Usuario/Documents/cursos/Data Analysis/geoData"
+setwd(path)
+houses <- read.csv("camdenhousesales15.csv")
+houses <- houses[, c(1, 2, 8, 9)]
+ggplot(houses, aes(oseast1m, osnrth1m)) + geom_point(pch = 1) + 
+  theme_light()
+library(sp)
+house.points <- SpatialPointsDataFrame(houses[,3:4], 
+                                       houses, proj4string = CRS("+init=EPSG:27700"))
+library(tmap)
+tm_shape(oa.census) + tm_borders(alpha = .4)
+tm_shape(oa.census) + tm_borders(alpha = .4) + tm_shape(house.points) +
+  tm_dots(col = "Price", palette = "Reds", style = "quantile")
+tm_shape(oa.census) + tm_borders(alpha = .4) + tm_shape(house.points)+ 
+  tm_dots(col = "Price", scale = 3, palette = "Reds", style = "quantile", title = "Price Paid")
+tm_shape(oa.census) + tm_borders(alpha = .4) + tm_shape(house.points) +
+  tm_dots(col = "Price", scale = 3, palette = "Purples", style = "quantile",
+          title = "Price Paid") + tm_layout(legend.text.size = .8, 
+                                            legend.title.size = 1.4,
+                                            frame = F)
+#proportional symbols
+tm_shape(oa.census) + tm_borders(alpha = .4) + tm_shape(house.points) +
+  tm_bubbles(size = "Price", col = "Price", palette = "Oranges", 
+             style = "quantile", legend.size.show = F, 
+             title.col = "Price Paid")
+tm_shape(oa.census) + tm_fill("Qualification", palette = "Blues", 
+                              style = "equal", title = "% Calificados") +
+  tm_borders() + tm_shape(house.points) + 
+  tm_bubbles(size = "Price", col = "Price", palette = "Reds", style = "equal",
+             legend.size.show = F, title.col = "Price Paid") +
+  tm_layout(legend.text.size = 0.8, legend.title.size = 1.1, frame = F)
+writeOGR(house.points, dsn = path, layer = "camden.house.sales", 
+         driver = "ESRI Shapefile")
