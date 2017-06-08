@@ -1,0 +1,30 @@
+#Using R as GIS
+library(sp)
+library(rgdal)
+library(rgeos)
+path <- "C:/Users/Usuario/Documents/cursos/Data Analysis/GeoData/salud"
+setwd(path)
+salud <- readOGR(".", "indice_salud_muni2011")
+View(salud@data)
+str(salud@data)
+salud@data$POBLACION <- as.numeric(salud@data$POBLACION)
+tm_shape(salud) + tm_fill(col = "ISM2011", style = "quantile", title = "Indice de Salud Municipal", palette = "Reds")
+model0 <- lm(salud@data$ISM2011 ~ salud@data$ISM2010)
+model1 <- lm(salud@data$ISM2011 ~ salud@data$ISM2010 + salud@data$ISM2009 + salud@data$ISM2008 + salud@data$ISM2007 + salud@data$ISM2006 + salud@data$ISM2005 + salud@data$ISM2000)
+library(corrplot)
+View(salud@data)
+cor(salud@data[, c(18, 21, 24, 27, 30, 33, 36, 39)])
+cor(salud@data[, c(18, 24, 27, 30, 33)])
+summary(model1)
+summary(model0)
+model2 <- lm(salud@data$ISM2011 ~ salud@data$ISM2000 + salud@data$ISM2006 + salud@data$ISM2008 + salud@data$ISM2009)
+summary(model2)
+#Buffers
+#This simple technique is commonly used to determine which areas are proximal to certain objects
+salud <- spTransform(salud, CRS("+init=EPSG:3857"))
+salud.buffers <- gBuffer(salud, width = 200, byid = T)
+tm_shape(salud) + tm_borders() +
+  tm_shape(salud.buffers) + tm_borders(col = "blue") +
+  tm_shape(salud) + tm_dots(col = "red")
+google.bolivia <- gmap("Bolivia", type = "satellite")
+plot(google.bolivia)
