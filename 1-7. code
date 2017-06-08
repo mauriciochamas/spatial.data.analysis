@@ -226,3 +226,4 @@ tm_shape(house.points) + tm_bubbles(size = "Price", title.size = "Precios de cas
                                     palette = "Reds")
 tm_shape(oa.census) + tm_fill("Qualification", palette = "Purples", style = "quantile",
                               title = "% de calificación") + tm_borders(alpha = .4)
+tmap_mode("plot")
