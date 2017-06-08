@@ -157,3 +157,72 @@ tm_shape(oa.census) + tm_fill("Qualification", palette = "Blues",
   tm_layout(legend.text.size = 0.8, legend.title.size = 1.1, frame = F)
 writeOGR(house.points, dsn = path, layer = "camden.house.sales", 
          driver = "ESRI Shapefile")
+=====
+#Using R as GIS
+library(sp)
+library(rgdal)
+library(rgeos)
+path <- "C:/Users/Usuario/Documents/cursos/Data Analysis/GeoData/Camden/shapefiles"
+setwd(path)
+output.areas <- readOGR(".", "Camden_oa11")
+oa.census <- merge(output.areas, census.data, by.x = "OA11CD", by.y = "OA")
+path <- "C:/Users/Usuario/Documents/cursos/Data Analysis/GeoData"
+setwd(path)
+house.points <- readOGR(".", "camden.house.sales")
+proj4string(oa.census) <- CRS("+init=EPSG:27700")
+proj4string(house.points) <- CRS("+init=EPSG:27700")
+pip <- over(house.points, oa.census)
+house.points@data <- cbind(house.points@data, pip)
+View(house.points@data)
+View(output.areas@data)
+ggplot(house.points@data, aes(log(Price), Unemployed)) + geom_point(pch = 1)
+oa <- aggregate(house.points@data$Price, by = list(house.points@data$OA11CD), mean)
+library(dplyr)
+oa <- house.points@data %>%
+  group_by(OA11CD) %>%
+  summarise(Price = mean(Price, na.rm = T))
+names(oa) <- c("OA11CD", "Price")
+oa.census@data <- merge(oa.census@data, oa, by = "OA11CD", all.x = T)
+View(oa.census@data)
+library(tmap)
+tm_shape(oa.census) + tm_fill(col = "Price", style = "quantile", 
+                              title = "Mean House Price")
+#buffers
+house.buffers <- gBuffer(house.points, width = 200, byid = T)
+tm_shape(oa.census) + tm_borders() + 
+  tm_shape(house.buffers) + tm_borders(col = "blue") + 
+  tm_shape(house.points) + tm_dots(col = "red")
+#union
+union.buffers <- gUnaryUnion(house.buffers)
+tm_shape(oa.census) + tm_borders() + 
+  tm_shape(union.buffers) + tm_fill(col = "blue", alpha = .4) +
+  tm_borders(col = "blue") +
+  tm_shape(house.points) + tm_dots(col = "green")
+library(raster)
+library(dismo)
+google.map <- gmap("Camden, London", type = "satellite")
+plot(google.map)
+google.map <- gmap("Camden, London", type = "roadmap", filename = "camden.gmap")
+crs.new <- CRS("+proj=longlat +ellps=WGS84 +datnum=WGS84")
+reprojected.houses <- spTransform(house.points, crs.new)
+tm_shape(google.map) + tm_raster() + tm_shape(reprojected.houses) +
+  tm_dots(col = "Price", style = "quantile", scale = 2.5, palette = "Reds",
+          title = "Precios de casas", border.col = "black", border.lwd = 0.1,
+          border.alpha = 0.4) + tm_layout(legend.position = c("left", "bottom"),
+                                          legend.text.size = 1.1,
+                                          legend.title.size = 1.4,
+                                          frame = F,
+                                          legend.bg.color = "white",
+                                          legend.bg.alpha = 0.5)
+#interactive maps
+library(leaflet)
+tmap_mode("view")
+tm_shape(house.points) + tm_dots(title = "Precio de casas", border.col = "black",
+border.lwd = 0.1, border.alpha = 0.2, col = "Price", style = "quantile",
+palette = "Blues")
+tm_shape(house.points) + tm_bubbles(size = "Price", title.size = "Precios de casas",
+                                    border.col = "black", border.lwd = 0.1, 
+                                    border.alpha = 0.4, legend.size.show = T,
+                                    palette = "Reds")
+tm_shape(oa.census) + tm_fill("Qualification", palette = "Purples", style = "quantile",
+                              title = "% de calificación") + tm_borders(alpha = .4)
