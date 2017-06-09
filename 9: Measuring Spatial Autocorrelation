@@ -1,0 +1,59 @@
+setwd("C:/Users/Usuario/Documents/cursos/Data Analysis/GeoData/Camden/tables")
+census.data <- read.csv("practical.data.csv")
+library(sp)
+library(rgdal)
+library(rgeos)
+setwd("C:/Users/Usuario/Documents/cursos/Data Analysis/GeoData/Camden/shapefiles")
+output.areas <- readOGR(".", "Camden_oa11")
+oa.census <- merge(output.areas, census.data, by.x = "OA11CD", by.y = "OA")
+setwd("C:/Users/Usuario/Documents/cursos/Data Analysis/GeoData/Camden_house_sales")
+house.points <- readOGR(".", "Camden_house_sales")
+library(tmap)
+tm_shape(oa.census) + tm_fill("Qualification", palette = "Reds", style = "quantile", title = "% with a Qualification" + tm_borders(alpha = .4))
+#spatial autocorrelation
+library(Matrix)
+library(spdep)
+neighbours <- poly2nb(oa.census)
+neighbours
+plot(oa.census, border = 'lightgrey')
+plot(neighbours, coordinates(oa.census), add = T, col = "blue")
+neighbours2 <- poly2nb(oa.census, queen = F)
+neighbours2
+plot(oa.census, border = 'lightgrey')
+plot(neighbours, coordinates(oa.census), add = T, col = 'blue')
+plot(neighbours2, coordinates(oa.census), add = T, col = 'red')
+listw <- nb2listw(neighbours2)
+listw
+moran.test(oa.census$Qualification, listw)
+moran <- moran.plot(oa.census$Qualification, listw = nb2listw(neighbours2, style = "W"))
+local <- localmoran(x = oa.census$Qualification, listw = nb2listw(neighbours2, style = "W"))
+local
+moran.map <- cbind(oa.census, local)
+tm_shape(moran.map) + tm_fill(col = "Ii", style = "quantile", title = "local moran statistic")
+names(moran.map@data)
+#to create LISA cluster map
+quadrant <- vector(mode = "numeric", length = nrow(local))
+m.qualification <- oa.census$Qualification - mean(oa.census$Qualification)
+m.local <- local[, 1] - mean(local[, 1])
+signif <- .1
+#built a data quadrant
+quadrant[m.qualification > 0 & m.local > 0] <- 4
+quadrant[m.qualification < 0 & m.local < 0] <- 1
+quadrant[m.qualification < 0 & m.local > 0] <- 2
+quadrant[m.qualification > 0 & m.local < 0] <- 3
+quadrant[local[, 5] > signif] <- 0
+brks <- c(0, 1, 2, 3, 4)
+color <- c("white", "blue", rgb(0, 0, 1, alpha = .4), rgb(1, 0, 0, alpha = .4), "red")
+plot(oa.census, border = 'lightgray', col = color[findInterval(quadrant, brks, all.inside = F)])
+box()
+legend("topleft", legend = c("insignificant", "low-low", "low-high", "high-low", "high-high"), fill = color, bty = "n")
+#getis-ord
+nb <- dnearneigh(coordinates(oa.census), 0, 250)
+nb.lw <- nb2listw(nb, style = 'B')
+plot(oa.census, border = 'lightgrey')
+plot(nb, coordinates(oa.census), add = T, col = 'red')
+local.g <- localG(oa.census$Qualification, nb.lw)
+local.g <- cbind(oa.census, as.matrix(local.g))
+names(local.g)[6] <- "gstat"
+tm_shape(local.g) + tm_fill("gstat", palette = "RdBu", style = "pretty") +
+  tm_borders(alpha = .4)
